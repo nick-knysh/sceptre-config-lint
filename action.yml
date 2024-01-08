@@ -12,6 +12,5 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - ${{ inputs.project-home }}
-    - ${{ inputs.cfn-lint-options }}
+    - ${{ inputs.cfn-lint-options }} ${{ inputs.project-home }}
 
