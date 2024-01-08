@@ -5,9 +5,13 @@ inputs:
   project-home:  # id of input
     description: 'Sceptre project home'
     required: true
+  cfn-lint-options:
+    description: 'cfn-lint options to pass: eg. "-i W2001,W3001"'
+    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
     - ${{ inputs.project-home }}
+    - ${{ inputs.cfn-lint-options }}
 

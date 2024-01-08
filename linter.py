@@ -116,10 +116,10 @@ def load_var_file(file_path):
             raise exc
 
 
-def validate_template(filename, ignore_checks):
+def validate_template(filename, linter_options):
     cfn_args = [filename]
-    if (ignore_checks):
-        cfn_args.extend(['-i', ignore_checks])
+    if (linter_options):
+        cfn_args.extend(linter_options.split(' '))
     (args, temple_filenames, formatter) = cfnlint.core.get_args_filenames(cfn_args)
     matches = list(cfnlint.core.get_matches(temple_filenames, args))
     error_msg = formatter.print_matches(matches, cfnlint.core.get_used_rules(), temple_filenames)
@@ -154,7 +154,7 @@ def match_params(config_params, template_params):
         return 0, None
 
 
-def process_config(config_filename, variables_filename, project_home, ignore_checks, is_try_default_template_path=True):
+def process_config(config_filename, variables_filename, project_home, linter_options, is_try_default_template_path=True):
     try:
         config = get_config_data(config_filename, variables_filename)
         template_path = os.path.join(project_home, config['template_path'])
@@ -162,7 +162,7 @@ def process_config(config_filename, variables_filename, project_home, ignore_che
             alt_template_path = os.path.join(project_home, 'templates', config['template_path'])
             if os.path.exists(alt_template_path) and os.path.isfile(alt_template_path):
                 template_path = alt_template_path
-        template_exit_code, template_errors = validate_template(template_path, ignore_checks)
+        template_exit_code, template_errors = validate_template(template_path, linter_options)
         params_exit_code, params_errors = match_params(
             get_template_params(template_path), get_template_params(template_path)
         )
@@ -204,7 +204,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parse parameters from a CloudFormation template and config file.")
     parser.add_argument("-c", "--config", required=False, help="Relative path to selected config YAML file.")
     parser.add_argument("-s", "--skip", required=False, help="Comma-delimited Relative paths to skipped config YAML file.")
-    parser.add_argument("-i", "--ignore", required=False, help="Comma-delimited cfn-lint ignore checks.")
+    parser.add_argument("-o", "--linter-options", required=False, help="cfn-lint options string")
     parser.add_argument("project_home", nargs=1, default=None, help="Path to the config YAML file with parameters.")
     args = parser.parse_args()
     print(f"project_home_dir: {args.project_home[0]}")
@@ -226,7 +226,7 @@ if __name__ == '__main__':
         skip_files.extend(args.skip.split(','))
     for config_path in filter(lambda x: not (next(filter(lambda skip: x.endswith(skip), skip_files), False)), configs):
         # print(f"Validating config: {config_path}")
-        comp_exit_code, error_msg = process_config(os.path.join(project_home, 'config', config_path), variables, project_home, args.ignore)
+        comp_exit_code, error_msg = process_config(os.path.join(project_home, 'config', config_path), variables, project_home, args.linter_options, True)
         if error_msg:
             print(f'\nValidation failed for [{config_path}] with following errors:')
             print(error_msg)
