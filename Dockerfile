@@ -8,5 +8,5 @@ RUN pip install --no-cache-dir Jinja2==3.1.2
 COPY entrypoint.sh /entrypoint.sh
 
 # Code file to execute when the docker container starts up (`entrypoint.sh`)
-ENTRYPOINT [ "/bin/sh", "-c", "./entrypoint.sh" ]
+ENTRYPOINT [ "/bin/sh", "-c", "/entrypoint.sh" ]
 
