@@ -220,7 +220,6 @@ if __name__ == '__main__':
     skip_files = ['config.yaml']
     if args.skip:
         skip_files.extend(args.skip.split(','))
-    print(skip_files)
     for config_path in filter(lambda x: not (next(filter(lambda skip: x.endswith(skip), skip_files), False)), configs):
         # print(f"Validating config: {config_path}")
         comp_exit_code, error_msg = process_config(os.path.join(project_home, 'config', config_path), variables, project_home)
