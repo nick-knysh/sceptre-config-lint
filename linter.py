@@ -211,6 +211,9 @@ if __name__ == '__main__':
     if os.path.exists(variables_file) and os.path.isfile(variables_file):
         variables = load_var_file(variables_file)
     comp_exit_code = 0
+    if os.path.exists(os.path.join(project_home, CONFIG_DIR)):
+        print("no config folder to process")
+        sys.exit(0)
     configs = collect_configs(os.path.join(project_home, CONFIG_DIR))
     if config_filter:
         configs = list(filter(lambda x: x.endswith(config_filter), configs))
