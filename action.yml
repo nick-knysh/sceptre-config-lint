@@ -1,0 +1,13 @@
+# action.yml
+name: 'Sceptre Config Linter'
+description: 'Validate params in scepte config files'
+inputs:
+  project-home:  # id of input
+    description: 'Sceptre project home'
+    required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.project-home }}
+
