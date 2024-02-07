@@ -205,8 +205,15 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--config", required=False, help="Relative path to selected config YAML file.")
     parser.add_argument("-s", "--skip", required=False, help="Comma-delimited Relative paths to skipped config YAML file.")
     parser.add_argument("-o", "--linter-options", required=False, help="cfn-lint options string")
+    parser.add_argument("-ti", "--linter-ignore-options", required=False, help="cfn-lint options string")
     parser.add_argument("project_home", nargs=1, default=None, help="Path to the config YAML file with parameters.")
+    import sys
+    print(f"args={sys.argv[1:]}")
     args = parser.parse_args()
+    print(f"..config={args.config}")
+    print(f"..skip={args.skip}")
+    print(f"..linter-options={args.linter_options}")
+    print(f"..linter-ignore-options={args.linter_ignore_options}")
     print(f"project_home_dir: {args.project_home[0]}")
     config_filter = args.config
     project_home = args.project_home[0]
@@ -226,7 +233,13 @@ if __name__ == '__main__':
         skip_files.extend(args.skip.split(','))
     for config_path in filter(lambda x: not (next(filter(lambda skip: x.endswith(skip), skip_files), False)), configs):
         # print(f"Validating config: {config_path}")
-        comp_exit_code, error_msg = process_config(os.path.join(project_home, 'config', config_path), variables, project_home, args.linter_options, True)
+        comp_exit_code, error_msg = process_config(
+            os.path.join(project_home, 'config', config_path), 
+            variables, 
+            project_home, 
+            " ".join(list(filter(None, ["-i " + args.linter_ignore_options if args.linter_ignore_options else None, args.linter_options]))), 
+            True
+        )
         if error_msg:
             print(f'\nValidation failed for [{config_path}] with following errors:')
             print(error_msg)
