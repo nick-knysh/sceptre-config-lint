@@ -18,5 +18,5 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - "" ${{ inputs.cfn-lint-options }} -s ${{ inputs.skip-patterns }} -ti ${{ inputs.linter-ignore-codes }} ${{ inputs.project-home }}
+    - "${{ inputs.cfn-lint-options }} -s ${{ inputs.skip-patterns }} -ti ${{ inputs.linter-ignore-codes }} ${{ inputs.project-home }}"
 
