@@ -8,9 +8,15 @@ inputs:
   cfn-lint-options:
     description: 'cfn-lint options to pass: eg. "-i W2001,W3001"'
     required: false
+  skip-patterns: 
+    description: 'comma-delimited file spec tappters'
+    required: false
+  linter-ignore-codes: 
+    description: 'comma-delimited codes'
+    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - ${{ inputs.cfn-lint-options }} ${{ inputs.project-home }}
+    - ${{ inputs.cfn-lint-options }} ${{ inputs.skip-patterns }} ${{ inputs.linter-ignore-codes }} ${{ inputs.project-home }}
 
