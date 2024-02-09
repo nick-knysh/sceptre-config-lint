@@ -148,9 +148,9 @@ def match_params(config_params, template_params):
     if conf_xtra_error or tpl_missing:
         errors = []
         if conf_xtra_error:
-            errors.append(f"Following config params are not present in the template: {conf_xtra_error}")
+            errors.append(f"Unknown params in config: {conf_xtra_error}")
         if tpl_missing:
-            errors.append(f"Following template params value are missing: {tpl_missing}")
+            errors.append(f"Missing template params: {tpl_missing}")
         return 1, '\n'.join(errors)
     else:
         return 0, None
