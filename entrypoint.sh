@@ -2,5 +2,9 @@
 cfn-lint --version
 
 echo "Processing linter.py $1"
-CODE=$(python /linter.py $1)
-exit $CODE
+python /linter.py $1
+if [ $? != 0 ];
+then
+    exit 1
+fi
+exit 0
