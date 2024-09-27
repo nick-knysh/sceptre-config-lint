@@ -11,16 +11,27 @@ import argparse
 
 import requests
 import yaml
-from jinja2 import Template
+from jinja2 import Template, StrictUndefined, Undefined, DebugUndefined, ChainableUndefined
 from cfnlint.decode import cfn_yaml
+from jinja2.environment import _environment_config_check
 from pathspec import PathSpec
 
 # methods:
 # load_config, get_local_content, get_url_content, get_content
 # are from sceptre project: https://github.com/Sceptre/sceptrelint/blob/main/pre_commit_hooks/util.py
 
+# List to hold names of undefined variables
+undefined_vars = []
 
-def load_config(config_path: str, variables: dict = dict) -> Any:
+
+class CollectingUndefined(Undefined):
+    def __init__(self, hint=None, obj=None, name=None, exc=None):
+        super().__init__(hint=hint, obj=obj, name=name, exc=exc)
+        # Add name to list of undefined variables
+        undefined_vars.append(name)
+
+
+def load_config(config_path: str, variables: dict = dict, strict_vars_load: bool = True) -> Any:
     """
     Produce a Python object (usually dict-like) from the config file
     at `config_path`
@@ -33,12 +44,24 @@ def load_config(config_path: str, variables: dict = dict) -> Any:
     # Let YAML handle tags naively
     def default_constructor(loader: Any, tag_suffix: Any, node: Any) -> str:
         return tag_suffix + ' ' + node.value
+
     yaml.FullLoader.add_multi_constructor('', default_constructor)
 
     with open(config_path, encoding='utf-8') as new_file:
         # Load template with blanks for all variables
-        template = Template(new_file.read())
-        return yaml.load(template.render(var=variables), Loader=yaml.FullLoader)
+        if strict_vars_load:
+            template = Template(new_file.read(), undefined=CollectingUndefined)
+            # Render the template with an empty context to find undefined variables
+            result = yaml.load(template.render(var=variables), Loader=yaml.FullLoader)
+            if undefined_vars:
+                # If there are undefined variables, raise an error
+                _error_msg = f"Undefined variables: {', '.join(undefined_vars)}"
+                undefined_vars.clear()
+                raise ValueError(_error_msg)
+            return result
+        else:
+            template = Template(new_file.read())
+            return yaml.load(template.render(var=variables), Loader=yaml.FullLoader)
 
 
 def get_local_content(path: str) -> list[str]:
@@ -93,7 +116,6 @@ def get_url_content(path: str) -> list[str]:
 
 
 def get_content(file: str) -> list[str]:
-
     if file.startswith('http'):
         content = get_url_content(file)
     else:
@@ -127,11 +149,17 @@ def validate_template(filename, linter_options):
     exit_code = cfnlint.core.get_exit_code(matches, args.non_zero_exit_code)
     return exit_code, error_msg
 
+
 def get_template_params(filename):
     return cfn_yaml.load(filename)['Parameters']
 
+
 def get_config_data(config_filename, variables):
-    return load_config(config_filename, variables)
+    try:
+        return load_config(config_filename, variables, strict_vars_load=True), None
+    except Exception as e:
+        return load_config(config_filename, variables, strict_vars_load=False), str(e)
+
 
 def match_params(config_params, template_params):
     # get params set's diff
@@ -148,17 +176,18 @@ def match_params(config_params, template_params):
     if conf_xtra_error or tpl_missing:
         errors = []
         if conf_xtra_error:
-            errors.append(f"Unknown params in config: {conf_xtra_error}")
+            errors.append(f"Unknown template params in config: \n\t{', '.join(conf_xtra_error)}")
         if tpl_missing:
-            errors.append(f"Missing template params: {tpl_missing}")
+            errors.append(f"Missing required template params: \n\t{', '.join(tpl_missing)}")
         return 1, '\n'.join(errors)
     else:
         return 0, None
 
 
-def process_config(config_filename, variables_filename, project_home, linter_options, is_try_default_template_path=True, verbose: bool = False):
+def process_config(config_filename, variables_filename, project_home, linter_options, is_try_default_template_path=True,
+                   verbose: bool = False):
     try:
-        config = get_config_data(config_filename, variables_filename)
+        config, config_errors = get_config_data(config_filename, variables_filename)
         template_path = os.path.join(project_home, config['template_path'])
         rel_config_path = config_filename[len(project_home) + 1:]
         rel_template_path = template_path[len(project_home) + 1:]
@@ -173,9 +202,12 @@ def process_config(config_filename, variables_filename, project_home, linter_opt
         params_exit_code, params_errors = match_params(
             config['parameters'], get_template_params(template_path)
         )
-        exit_code = max(template_exit_code, params_exit_code)
-        if exit_code != 0 and (template_errors or params_errors):
+        exit_code = max(template_exit_code, params_exit_code, 1 if config_errors else 0)
+        if exit_code != 0 and (config_errors or template_errors or params_errors):
             errors = []
+            if config_errors:
+                errors.append(f"FAILED: >>> config errors for {rel_config_path}:")
+                errors.append(config_errors)
             if template_errors:
                 errors.append(f"FAILED: >> template errors for {rel_template_path}:")
                 errors.append(template_errors)
@@ -187,7 +219,6 @@ def process_config(config_filename, variables_filename, project_home, linter_opt
             return 0, "OK"
     except Exception as e:
         return 1, f"Failed to process config file: {config_filename}: {e}"
-
 
 
 def collect_configs(config_directory):
@@ -204,6 +235,7 @@ def collect_configs(config_directory):
 
     collect_files_in(config_directory)
     return file_paths
+
 
 def list_files_recursively(root_dir, include_filters, skip_filters):
     file_list = []
@@ -226,11 +258,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parse parameters from a CloudFormation template and config file.")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", required=False, help="Verbose mode.")
     parser.add_argument("-c", "--config", required=False, help="Relative path to selected config YAML file.")
-    parser.add_argument("-s", "--skip", required=False, help="Comma-delimited Relative paths to skipped config YAML file.")
+    parser.add_argument("-s", "--skip", required=False,
+                        help="Comma-delimited Relative paths to skipped config YAML file.")
     parser.add_argument("-o", "--linter-options", required=False, help="cfn-lint options string")
     parser.add_argument("-ti", "--linter-ignore-options", required=False, help="cfn-lint options string")
     parser.add_argument("project_home", nargs=1, default=None, help="Path to the config YAML file with parameters.")
     import sys
+
     print(f"args={sys.argv[1:]}")
     args = parser.parse_args()
     print(f"..config={args.config}")
@@ -260,10 +294,11 @@ if __name__ == '__main__':
     for config_path in configs:
         # print(f"Validating config: {config_path}")
         comp_exit_code, error_msg = process_config(
-            os.path.join(project_home, 'config', config_path), 
-            variables, 
-            project_home, 
-            " ".join(list(filter(None, ["-i " + args.linter_ignore_options if args.linter_ignore_options else None, args.linter_options]))), 
+            os.path.join(project_home, 'config', config_path),
+            variables,
+            project_home,
+            " ".join(list(filter(None, ["-i " + args.linter_ignore_options if args.linter_ignore_options else None,
+                                        args.linter_options]))),
             is_try_default_template_path=True,
             verbose=args.verbose
         )
@@ -274,7 +309,5 @@ if __name__ == '__main__':
             if error_msg and args.verbose:
                 print(error_msg)
 
-    print(f"configs checked: {len(configs)}")
+    print(f"\n [DONE] configs checked: {len(configs)}")
     sys.exit(comp_exit_code)
-
-
