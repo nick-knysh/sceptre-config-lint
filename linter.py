@@ -293,7 +293,7 @@ if __name__ == '__main__':
 
     for config_path in configs:
         # print(f"Validating config: {config_path}")
-        comp_exit_code, error_msg = process_config(
+        config_exit_code, error_msg = process_config(
             os.path.join(project_home, 'config', config_path),
             variables,
             project_home,
@@ -302,7 +302,8 @@ if __name__ == '__main__':
             is_try_default_template_path=True,
             verbose=args.verbose
         )
-        if comp_exit_code > 0:
+        comp_exit_code = comp_exit_code + config_exit_code
+        if config_exit_code > 0:
             print(f'\n[!] Validation failed for [{config_path}] with following errors:')
             print(error_msg)
         else:
